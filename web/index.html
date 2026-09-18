@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>WiFi File Transfer</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,sans-serif;background:#0b1020;color:#eef2ff}main{max-width:850px;margin:auto;padding:28px 16px}.card{background:#151c33;border:1px solid #293353;border-radius:20px;padding:22px;margin:16px 0}h1{margin:0 0 8px;font-size:30px}p{color:#aeb9d6}.drop{display:block;border:2px dashed #53648f;border-radius:16px;padding:38px 16px;text-align:center;cursor:pointer}.drop:hover{border-color:#8da2dd}button{border:0;border-radius:12px;padding:11px 16px;background:#6d8cff;color:white;font-weight:700;cursor:pointer}button.danger{background:#c94d61}.row{display:flex;gap:12px;align-items:center;justify-content:space-between;padding:13px 0;border-bottom:1px solid #293353}.row:last-child{border:0}.name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.muted{font-size:13px;color:#91a0c3}.bar{height:8px;background:#293353;border-radius:9px;overflow:hidden;margin-top:15px}.fill{height:100%;width:0;background:#6d8cff;transition:.15s}.hidden{display:none}.top{display:flex;justify-content:space-between;gap:12px;align-items:center}.status{font-weight:700}@media(max-width:600px){main{padding:16px 10px}.card{padding:16px}h1{font-size:25px}}
+</style></head><body><main>
+<div class="top"><div><h1>📁 WiFi File Transfer</h1><p>Upload on your PC. Download on any device connected to the same WiFi.</p></div></div>
+<div class="card"><label class="drop" for="file"><strong>Choose files</strong><br><span class="muted">or drag and drop them here</span></label><input id="file" type="file" multiple hidden>
+<div id="progress" class="hidden"><div class="status" id="status"></div><div class="bar"><div class="fill" id="fill"></div></div></div></div>
+<div class="card"><div class="top"><h2>Available files</h2><button onclick="load()">Refresh</button></div><div id="list"></div></div>
+</main><script>
+const input=document.getElementById('file'),drop=document.querySelector('.drop'),list=document.getElementById('list'),progress=document.getElementById('progress'),status=document.getElementById('status'),fill=document.getElementById('fill');
+input.onchange=()=>upload(Array.from(input.files));
+drop.ondragover=e=>e.preventDefault();
+drop.ondrop=e=>{e.preventDefault();upload(Array.from(e.dataTransfer.files))};
+function size(n){if(n<1024)return n+' B';if(n<1048576)return (n/1024).toFixed(1)+' KB';if(n<1073741824)return (n/1048576).toFixed(1)+' MB';return (n/1073741824).toFixed(2)+' GB'}
+function esc(s){return s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]))}
+async function upload(files){for(const file of files){progress.classList.remove('hidden');status.textContent='Uploading '+file.name+'…';fill.style.width='0%';await new Promise((resolve,reject)=>{const x=new XMLHttpRequest();x.open('POST','/api/upload');x.upload.onprogress=e=>{if(e.lengthComputable){fill.style.width=(e.loaded/e.total*100)+'%';status.textContent='Uploading '+file.name+' — '+Math.round(e.loaded/e.total*100)+'%'}};x.onload=()=>x.status<300?resolve():reject(new Error(x.responseText));x.onerror=()=>reject(new Error('Network error'));const f=new FormData();f.append('file',file,file.name);x.send(f)}).catch(e=>alert(e.message))}progress.classList.add('hidden');input.value='';load()}
+async function load(){const r=await fetch('/api/files');const files=await r.json();list.innerHTML='';if(!files.length){list.innerHTML='<p class="muted">No files yet.</p>';return}files.forEach(f=>{const row=document.createElement('div');row.className='row';row.innerHTML='<div class="name"><strong>'+esc(f.name)+'</strong><br><span class="muted">'+size(f.size)+'</span></div><div><button onclick="downloadFile('+JSON.stringify(f.name)+')">Download</button> <button class="danger" onclick="deleteFile('+JSON.stringify(f.name)+')">Delete</button></div>';list.appendChild(row)})}
+function downloadFile(n){location.href='/download/'+encodeURIComponent(n)}
+async function deleteFile(n){if(confirm('Delete '+n+'?')){await fetch('/api/files/'+encodeURIComponent(n),{method:'DELETE'});load()}}
+load();
+</script></body></html>
